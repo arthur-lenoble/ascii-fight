@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASCII FIGHT ARENA</title>
+    <style>
+        body {
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .game-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #game-area {
+            white-space: pre;
+            font-size: 14px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 10px;
+            width: 300px;
+            height: 200px;
+            overflow: hidden;
+            position: relative;
+        }
+        #health-bar, #lives-counter, #score-counter {
+            position: absolute;
+            top: 5px;
+            height: 10px;
+        }
+        #health-bar {
+            left: 5px;
+            width: 50px;
+            background-color: red;
+        }
+        #lives-counter {
+            left: 70px;
+            width: 30px;
+            background-color: blue;
+        }
+        #score-counter {
+            right: 5px;
+            width: 50px;
+            background-color: green;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .italic {
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>ASCII FIGHT ARENA</h1>
+        <div id="game-area">
+            <div id="health-bar"></div>
+            <div id="lives-counter"></div>
+            <div id="score-counter"></div>
+            ----------------------------
+            -                          -
+            -                          -
+            -                          -
+            -                          -
+            -            0             -
+            -                          -
+            -                          -
+            -XXXXX       XXXXX         -
+            ----------------------------
+        </div>
+        <div class="controls">
+            <button onmousedown="startMove('left')" onmouseup="stopMove('left')" ontouchstart="startMove('left')" ontouchend="stopMove('left')">Gauche</button>
+            <button onmousedown="startMove('up')" onmouseup="stopMove('up')" ontouchstart="startMove('up')" ontouchend="stopMove('up')">Haut</button>
+            <button onmousedown="startMove('down')" onmouseup="stopMove('down')" ontouchstart="startMove('down')" ontouchend="stopMove('down')">Bas</button>
+            <button onmousedown="startMove('right')" onmouseup="stopMove('right')" ontouchstart="startMove('right')" ontouchend="stopMove('right')">Droite</button>
+            <br>
+            <button onclick="rangedAttack()">Tirer</button>
+            <button onclick="meleeAttack()">Mêlée</button>
+        </div>
+    </div>
+
+    <script>
+        const gameArea = document.getElementById('game-area');
+        const healthBar = document.getElementById('health-bar');
+        const livesCounter = document.getElementById('lives-counter');
+        const scoreCounter = document.getElementById('score-counter');
+        let playerPos = { x: 12, y: 4 };
+        let playerHealth = 100;
+        let playerLives = 3;
+        let score = 0;
+        let moveInterval;
+        let enemies = [];
+        let projectiles = [];
+        let lastDirection = 'right';
+
+        function drawGame() {
+            let gameBoard = `----------------------------\n`;
+            for (let y = 0; y < 8; y++) {
+                gameBoard += '-';
+                for (let x = 0; x < 30; x++) {
+                    let char = ' ';
+                    if (y === playerPos.y && x === playerPos.x) {
+                        char = '0';
+                    }
+                    enemies.forEach(enemy => {
+                        if (enemy.y === y && enemy.x === x) {
+                            char = '¥';
+                        }
+                    });
+                    projectiles.forEach(projectile => {
+                        if (projectile.y === y && projectile.x === x) {
+                            char = '•';
+                        }
+                    });
+                    gameBoard += char;
+                }
+                gameBoard += '-\n';
+            }
+            gameBoard += `----------------------------`;
+            gameArea.innerHTML = gameBoard;
+            updateHealthBar();
+            updateLivesCounter();
+            updateScoreCounter();
+        }
+
+        function updateHealthBar() {
+            healthBar.style.width = `${playerHealth}%`;
+            if (playerHealth <= 0) {
+                playerLives--;
+                if (playerLives <= 0) {
+                    alert('Game Over!');
+                    resetGame();
+                } else {
+                    playerHealth = 100;
+                    animateLoseLife();
+                }
+            }
+        }
+
+        function updateLivesCounter() {
+            livesCounter.style.width = `${playerLives * 10}%`;
+        }
+
+        function updateScoreCounter() {
+            scoreCounter.innerText = score;
+        }
+
+        function startMove(direction) {
+            if (moveInterval) return;
+            moveInterval = setInterval(() => {
+                movePlayer(direction);
+            }, 100);
+            lastDirection = direction;
+        }
+
+        function stopMove(direction) {
+            clearInterval(moveInterval);
+            moveInterval = null;
+        }
+
+        function movePlayer(direction) {
+            switch (direction) {
+                case 'left':
+                    if (playerPos.x > 1) playerPos.x--;
+                    break;
+                case 'up':
+                    if (playerPos.y > 1) playerPos.y--;
+                    break;
+                case 'down':
+                    if (playerPos.y < 6) playerPos.y++;
+                    break;
+                case 'right':
+                    if (playerPos.x < 28) playerPos.x++;
+                    break;
+            }
+            drawGame();
+        }
+
+        function rangedAttack() {
+            let velocity = { x: 0, y: 0 };
+            if (lastDirection === 'left') velocity.x = -1;
+            if (lastDirection === 'right') velocity.x = 1;
+            if (lastDirection === 'up') velocity.y = -1;
+            if (lastDirection === 'down') velocity.y = 1;
+
+            projectiles.push({ x: playerPos.x + velocity.x, y: playerPos.y + velocity.y, velocity });
+            setTimeout(moveProjectiles, 100);
+        }
+
+        function moveProjectiles() {
+            projectiles.forEach(projectile => {
+                projectile.x += projectile.velocity.x;
+                projectile.y += projectile.velocity.y;
+
+                enemies.forEach(enemy => {
+                    if (projectile.x === enemy.x && projectile.y === enemy.y) {
+                        enemy.hits = (enemy.hits || 0) + 1;
+                        if (enemy.hits >= 2) {
+                            enemies = enemies.filter(e => e !== enemy);
+                            score += 20;
+                        }
+                    }
+                });
+            });
+            projectiles = projectiles.filter(p => p.x > 0 && p.x < 30 && p.y > 0 && p.y < 8);
+            drawGame();
+            if (projectiles.length > 0) {
+                setTimeout(moveProjectiles, 100);
+            }
+        }
+
+        function meleeAttack() {
+            const playerElement = gameArea.innerHTML.replace('0', '<span class="italic">0</span>');
+            gameArea.innerHTML = playerElement;
+            setTimeout(() => {
+                drawGame();
+            }, 200);
+        }
+
+        function spawnEnemy() {
+            const enemy = { x: Math.floor(Math.random() * 30), y: Math.floor(Math.random() * 8), direction: null };
+            enemies.push(enemy);
+            setTimeout(moveEnemy, 500, enemy);
+        }
+
+        function moveEnemy(enemy) {
+            if (enemy.x < playerPos.x) enemy.x++;
+            if (enemy.x > playerPos.x) enemy.x--;
+            if (enemy.y < playerPos.y) enemy.y++;
+            if (enemy.y > playerPos.y) enemy.y--;
+
+            if (enemy.x === playerPos.x && enemy.y === playerPos.y) {
+                playerHealth -= 10;
+                score += 10;
+                enemies = enemies.filter(e => e !== enemy);
+            }
+
+            drawGame();
+            if (enemies.includes(enemy)) {
+                setTimeout(moveEnemy, 500, enemy);
+            }
+        }
+
+        function resetGame() {
+            playerPos = { x: 12, y: 4 };
+            playerHealth = 100;
+            playerLives = 3;
+            score = 0;
+            enemies = [];
+            projectiles = [];
+            lastDirection = 'right';
+            drawGame();
+        }
+
+        function resetPlayerPosition() {
+            playerPos = { x: 12, y: 4 };
+            drawGame();
+        }
+
+        function animateLoseLife() {
+            playerPos.x -= 2;
+            drawGame();
+            setTimeout(() => {
+                resetPlayerPosition();
+            }, 200);
+        }
+
+        drawGame();
+        setInterval(spawnEnemy, 3000);
+    </script>
+</body>
+</html>
